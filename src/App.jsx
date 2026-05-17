@@ -28,7 +28,6 @@ function useMondayData() {
       const ctx = ctxRes.data;
       const bid = String(ctx.boardId);
       
-      // אם החלפנו בורד - טען cache של הבורד החדש או רוקן
       if (bid !== boardId) {
         setBoardId(bid);
         try {
@@ -60,7 +59,7 @@ function useMondayData() {
         const col = id => it.column_values.find(c => c.id === id) || {};
         const dateVal = JSON.parse(col(COLUMN_IDS.followUpDate).value || 'null');
         const peopleVal = JSON.parse(col(COLUMN_IDS.assignee).value || '{}');
-        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}`) : null;
+        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}Z`) : null;
         const assignedTo = (peopleVal.personsAndTeams || []).map(p => String(p.id));
         return {
           id: it.id, name: it.name, followUpAt, assignedTo,
@@ -218,7 +217,7 @@ function FloatingNext({ item, onOpen }) {
 }
 
 export default function App() {
-const { items, user, error, refresh } = useMondayData();
+  const { items, user, error, refresh } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
   const [groupLimits, setGroupLimits] = useState({ today_future: 20, last_week: 20, last_month_plus: 20 });
@@ -240,6 +239,8 @@ const { items, user, error, refresh } = useMondayData();
   const grouped = useMemo(() => {
     const g = {};
     visible.forEach(it => { const key = groupOf(it.followUpAt); if (!g[key]) g[key] = []; g[key].push(it); });
+    if (g.today_future) g.today_future.sort((a, b) => a.followUpAt - b.followUpAt);
+    if (g.last_week) g.last_week.sort((a, b) => b.followUpAt - a.followUpAt);
     if (g.last_month_plus) g.last_month_plus.sort((a, b) => b.followUpAt - a.followUpAt);
     return g;
   }, [visible, tick]); // eslint-disable-line
@@ -270,9 +271,14 @@ const { items, user, error, refresh } = useMondayData();
               <p className="text-[11px] text-slate-500">{user ? `${user.name} · ${visible.length} פתוחים` : 'טוען...'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-white px-2.5 py-1.5 rounded-full border border-slate-200">
-            <Clock className="w-3 h-3" />
-            <span className="tabular-nums">{new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={refresh} className="flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-600 hover:text-indigo-600" title="רענן עכשיו">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-white px-2.5 py-1.5 rounded-full border border-slate-200">
+              <Clock className="w-3 h-3" />
+              <span className="tabular-nums">{new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -288,7 +294,7 @@ const { items, user, error, refresh } = useMondayData();
           </div>
         )}
 
-   {GROUP_ORDER.map(key => {
+        {GROUP_ORDER.map(key => {
           const list = grouped[key];
           if (!list || list.length === 0) return null;
           const meta = GROUP_META[key];
