@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp } from 'lucide-react';
+import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp, Check, Undo2 } from 'lucide-react';
 import mondaySdk from 'monday-sdk-js';
 
 const monday = mondaySdk();
@@ -13,11 +13,9 @@ const COLUMN_IDS = {
   source: 'dropdown6',
 };
 
-/* ---------- DATA HOOK ---------- */
 function useMondayData() {
   const [items, setItems] = useState([]);
   const [user, setUser] = useState(null);
-  const [boardId, setBoardId] = useState(null);
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
@@ -27,19 +25,9 @@ function useMondayData() {
       const meRes = await monday.api(`query { me { id email name } }`);
       const me = meRes.data.me;
       setUser(me);
-      setBoardId(ctx.boardId);
 
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
-      const q = `query {
-        boards(ids: [${ctx.boardId}]) {
-          items_page(limit: 500) {
-            items {
-              id name
-              column_values(ids: [${cols}]) { id type text value }
-            }
-          }
-        }
-      }`;
+      const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
       const res = await monday.api(q);
       const raw = res.data.boards[0].items_page.items;
 
@@ -74,36 +62,35 @@ function useMondayData() {
 
   useEffect(() => {
     refresh();
-    const i = setInterval(refresh, 60_000);
+    const i = setInterval(refresh, 60000);
     return () => clearInterval(i);
   }, [refresh]);
 
-  return { items, user, boardId, error, refresh };
+  return { items, user, error, refresh };
 }
 
-/* ---------- HELPERS ---------- */
 const pad = (n) => String(n).padStart(2, '0');
 
 const countdown = (d) => {
   const diff = d.getTime() - Date.now();
   const abs = Math.abs(diff);
-  const days = Math.floor(abs / 86_400_000);
-  const hours = Math.floor((abs % 86_400_000) / 3_600_000);
-  const mins = Math.floor((abs % 3_600_000) / 60_000);
-  const secs = Math.floor((abs % 60_000) / 1000);
+  const days = Math.floor(abs / 86400000);
+  const hours = Math.floor((abs % 86400000) / 3600000);
+  const mins = Math.floor((abs % 3600000) / 60000);
+  const secs = Math.floor((abs % 60000) / 1000);
 
   if (diff < 0) {
-    if (abs < 60_000) return { text: 'הגיע הזמן!', urgency: 'overdue' };
-    if (abs < 3_600_000) return { text: `איחור ${mins}:${pad(secs)}`, urgency: 'overdue' };
-    if (abs < 86_400_000) return { text: `איחור ${hours}ש׳ ${mins}ד׳`, urgency: 'overdue' };
+    if (abs < 60000) return { text: 'הגיע הזמן!', urgency: 'overdue' };
+    if (abs < 3600000) return { text: `איחור ${mins}:${pad(secs)}`, urgency: 'overdue' };
+    if (abs < 86400000) return { text: `איחור ${hours}ש׳ ${mins}ד׳`, urgency: 'overdue' };
     if (days === 1) return { text: 'איחור יום', urgency: 'overdue' };
     if (days < 7) return { text: `איחור ${days} ימים`, urgency: 'overdue' };
     if (days < 30) return { text: `איחור ${Math.floor(days / 7)} שבועות`, urgency: 'overdue' };
     return { text: `איחור ${Math.floor(days / 30)} חודשים`, urgency: 'overdue' };
   }
-  if (diff < 60_000) return { text: `${secs} שניות`, urgency: 'urgent' };
-  if (diff < 3_600_000) return { text: `${mins}:${pad(secs)}`, urgency: 'urgent' };
-  if (diff < 86_400_000) return { text: `${pad(hours)}:${pad(mins)}:${pad(secs)}`, urgency: 'soon' };
+  if (diff < 60000) return { text: `${secs} שניות`, urgency: 'urgent' };
+  if (diff < 3600000) return { text: `${mins}:${pad(secs)}`, urgency: 'urgent' };
+  if (diff < 86400000) return { text: `${pad(hours)}:${pad(mins)}:${pad(secs)}`, urgency: 'soon' };
   if (days === 1) return { text: 'מחר', urgency: 'normal' };
   if (days < 7) return { text: `בעוד ${days} ימים`, urgency: 'normal' };
   return { text: d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }), urgency: 'far' };
@@ -126,78 +113,76 @@ const waLink = (phone, msg) => {
 };
 const defaultMessage = (name) => `היי ${name || ''}, רציתי לחזור אליך לגבי השיחה האחרונה שלנו. מתי נוח לך לדבר?`;
 
+// 3 קבוצות: היום+עתידי, שבוע שעבר, חודש שעבר+
 const groupOf = (d) => {
-  const now = new Date();
-  const diff = d.getTime() - now.getTime();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const endOfToday = startOfToday + 86_400_000;
-  const t = d.getTime();
-  if (diff < 0) {
-    const ago = Math.abs(diff);
-    if (t >= startOfToday) return 'overdue_today';
-    if (ago < 7 * 86_400_000) return 'overdue_week';
-    return 'overdue_old';
-  }
-  if (t < endOfToday) return 'today';
-  if (diff < 7 * 86_400_000) return 'this_week';
-  return 'future';
+  const diff = d.getTime() - Date.now();
+  if (diff >= 0) return 'today_future';
+  const abs = Math.abs(diff);
+  if (abs < 7 * 86400000) return 'last_week';
+  return 'last_month_plus';
 };
 
 const GROUP_META = {
-  overdue_today: { title: 'דחוף — איחור היום', color: '#ef4444' },
-  overdue_week: { title: 'איחור השבוע', color: '#f59e0b' },
-  overdue_old: { title: 'איחור מלפני שבוע+', color: '#94a3b8' },
-  today: { title: 'בהמשך היום', color: '#7c3aed' },
-  this_week: { title: 'השבוע', color: '#3b82f6' },
-  future: { title: 'בעתיד', color: '#64748b' },
+  today_future: { title: 'היום ובהמשך', color: '#7c3aed' },
+  last_week: { title: 'שבוע שעבר', color: '#f59e0b' },
+  last_month_plus: { title: 'חודש שעבר+', color: '#dc2626' },
 };
 
-const GROUP_ORDER = ['overdue_today', 'overdue_week', 'overdue_old', 'today', 'this_week', 'future'];
+const GROUP_ORDER = ['last_month_plus', 'last_week', 'today_future'];
 
-/* ---------- ITEM CARD ---------- */
-function ItemCard({ item, color, onClick }) {
+function ItemCard({ item, color, onClick, onMarkDone }) {
   const { text: cdText, urgency } = countdown(item.followUpAt);
   const cdColor = urgency === 'overdue' ? '#dc2626'
     : urgency === 'urgent' ? '#ea580c'
     : urgency === 'soon' ? '#7c3aed'
     : '#475569';
   return (
-    <button
-      onClick={onClick}
-      className="w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 transition-all hover:shadow-md hover:-translate-y-0.5 text-right"
+    <div
+      className="w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 transition-all hover:shadow-md"
       style={{
         border: `1px solid ${urgency === 'overdue' ? '#fecaca' : '#e2e8f0'}`,
         boxShadow: urgency === 'overdue' ? '0 4px 14px -4px rgba(239,68,68,0.2)' : '0 1px 2px rgba(0,0,0,0.03)',
       }}
     >
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0 text-sm"
-        style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}
-      >
-        {item.name.charAt(0)}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <h3 className="font-semibold text-slate-900 text-[13px] leading-tight">{item.name}</h3>
-          {item.source && <>
-            <span className="text-[10px] text-slate-300">·</span>
-            <span className="text-[10px] text-slate-500">{item.source}</span>
-          </>}
+      <button onClick={onClick} className="flex items-center gap-3 flex-1 min-w-0 text-right">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0 text-sm"
+          style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}
+        >
+          {item.name.charAt(0)}
         </div>
-        <p className="text-[11px] text-slate-500 mt-0.5 truncate tabular-nums">
-          {hhmm(item.followUpAt)} · {dateLabel(item.followUpAt)}
-        </p>
-      </div>
-      <div className="text-left shrink-0 min-w-[80px]">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3 className="font-semibold text-slate-900 text-[13px] leading-tight">{item.name}</h3>
+            {item.source && (
+              <>
+                <span className="text-[10px] text-slate-300">·</span>
+                <span className="text-[10px] text-slate-500">{item.source}</span>
+              </>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5 truncate tabular-nums">
+            {hhmm(item.followUpAt)} · {dateLabel(item.followUpAt)}
+          </p>
+        </div>
+      </button>
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
         <div className="text-[13px] font-bold tabular-nums" style={{ color: cdColor }}>
           {cdText}
         </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMarkDone(item.id); }}
+          className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200 transition"
+          title="סמן כטופל"
+        >
+          <Check className="w-3 h-3" />
+          טופל
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
 
-/* ---------- FLOATING BOTTOM-RIGHT ---------- */
 function FloatingNext({ item, onOpen }) {
   if (!item) return null;
   const { text: cdText, urgency } = countdown(item.followUpAt);
@@ -205,7 +190,7 @@ function FloatingNext({ item, onOpen }) {
   return (
     <button
       onClick={onOpen}
-      className="fixed bottom-4 right-4 z-40 max-w-[300px] rounded-2xl p-3.5 flex items-center gap-3 shadow-2xl transition hover:scale-[1.02] active:scale-95 text-right floating-card"
+      className="fixed bottom-4 left-4 z-40 max-w-[300px] rounded-2xl p-3.5 flex items-center gap-3 shadow-2xl transition hover:scale-[1.02] active:scale-95 text-right floating-card"
       style={{
         background: isOverdue
           ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)'
@@ -228,11 +213,11 @@ function FloatingNext({ item, onOpen }) {
   );
 }
 
-/* ---------- MAIN ---------- */
 export default function App() {
   const { items, user, error } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
+  const [showDone, setShowDone] = useState(false);
   const [done, setDone] = useState(() => {
     try {
       const raw = localStorage.getItem('followup-done');
@@ -249,10 +234,32 @@ export default function App() {
     try { localStorage.setItem('followup-done', JSON.stringify(d)); } catch {}
   };
 
+  const markDone = (id) => {
+    setDone(d => {
+      const next = { ...d, [id]: true };
+      persistDone(next);
+      return next;
+    });
+  };
+
+  const unmarkDone = (id) => {
+    setDone(d => {
+      const next = { ...d };
+      delete next[id];
+      persistDone(next);
+      return next;
+    });
+  };
+
   const visible = useMemo(() => {
     return [...items].filter(it => !done[it.id]).sort((a, b) => a.followUpAt - b.followUpAt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, done, tick]);
+
+  const doneItems = useMemo(() => {
+    return items.filter(it => done[it.id]).sort((a, b) => b.followUpAt - a.followUpAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, done]);
 
   const grouped = useMemo(() => {
     const g = {};
@@ -277,17 +284,6 @@ export default function App() {
   }, [visible, tick]);
 
   const overdueCount = visible.filter(it => it.followUpAt <= new Date()).length;
-
-  const complete = () => {
-    if (!activeAlert) return;
-    const id = activeAlert.id;
-    setDone(d => {
-      const next = { ...d, [id]: true };
-      persistDone(next);
-      return next;
-    });
-    setActiveAlert(null);
-  };
 
   return (
     <div dir="rtl" className="min-h-screen" style={{
@@ -361,12 +357,48 @@ export default function App() {
                     item={item}
                     color={meta.color}
                     onClick={() => setActiveAlert(item)}
+                    onMarkDone={markDone}
                   />
                 ))}
               </div>
             </section>
           );
         })}
+
+        {doneItems.length > 0 && (
+          <section className="mt-8">
+            <button
+              onClick={() => setShowDone(s => !s)}
+              className="text-[11px] text-slate-400 hover:text-slate-600 transition flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              {showDone ? 'הסתר' : 'הצג'} {doneItems.length} פולואפים שטופלו
+            </button>
+            {showDone && (
+              <div className="mt-3 space-y-2 opacity-70">
+                {doneItems.map(item => (
+                  <div key={item.id} className="bg-slate-50 rounded-xl p-3 flex items-center gap-3 border border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-slate-300 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                      {item.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-slate-600 truncate line-through">{item.name}</div>
+                      <div className="text-[10px] text-slate-400 tabular-nums">{dateLabel(item.followUpAt)}</div>
+                    </div>
+                    <button
+                      onClick={() => unmarkDone(item.id)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 transition"
+                      title="החזר לבורד"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      לא טופל
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       {nextItem && !activeAlert && (
@@ -457,14 +489,6 @@ export default function App() {
                   וואטסאפ
                 </a>
               </div>
-
-              <button
-                onClick={complete}
-                className="w-full mt-2 py-2.5 rounded-xl text-[13px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition border border-emerald-200 flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                סיים טיפול
-              </button>
             </div>
           </div>
         </div>
