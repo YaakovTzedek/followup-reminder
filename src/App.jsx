@@ -16,29 +16,32 @@ const COLUMN_IDS = {
 };
 
 function useMondayData() {
-  const CACHE_KEY = 'fu-cache-v2';
-  
-  const [items, setItems] = useState(() => {
-    try {
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && cached.items) {
-        return cached.items.map(it => ({ ...it, followUpAt: new Date(it.followUpAt) }));
-      }
-    } catch {}
-    return [];
-  });
-  const [user, setUser] = useState(() => {
-    try {
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      return cached?.user || null;
-    } catch { return null; }
-  });
+  const cacheKeyFor = (boardId) => `fu-cache-v3-${boardId}`;
+  const [boardId, setBoardId] = useState(null);
+  const [items, setItems] = useState([]);
+  const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
       const ctxRes = await monday.get('context');
       const ctx = ctxRes.data;
+      const bid = String(ctx.boardId);
+      
+      // אם החלפנו בורד - טען cache של הבורד החדש או רוקן
+      if (bid !== boardId) {
+        setBoardId(bid);
+        try {
+          const cached = JSON.parse(localStorage.getItem(cacheKeyFor(bid)) || 'null');
+          if (cached && cached.items) {
+            setItems(cached.items.map(it => ({ ...it, followUpAt: new Date(it.followUpAt) })));
+            if (cached.user) setUser(cached.user);
+          } else {
+            setItems([]);
+          }
+        } catch { setItems([]); }
+      }
+      
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
       const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500, query_params: {rules: [{column_id: "${COLUMN_IDS.followUpDate}", compare_value: [], operator: is_not_empty}]}) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
       
@@ -51,7 +54,7 @@ function useMondayData() {
       setUser(me);
       const raw = itemsRes.data.boards[0].items_page.items;
       const myId = String(me.id);
-      const isMainBoard = String(ctx.boardId) === MAIN_BOARD_ID;
+      const isMainBoard = bid === MAIN_BOARD_ID;
       const isAdmin = me.is_admin === true;
       const mapped = raw.map(it => {
         const col = id => it.column_values.find(c => c.id === id) || {};
@@ -75,7 +78,7 @@ function useMondayData() {
       setError(null);
       
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
+        localStorage.setItem(cacheKeyFor(bid), JSON.stringify({
           user: me,
           items: mapped.map(it => ({ ...it, followUpAt: it.followUpAt.toISOString() })),
         }));
@@ -84,7 +87,7 @@ function useMondayData() {
       console.error('Monday fetch error', e);
       setError(e.message || String(e));
     }
-  }, []);
+  }, [boardId]);
 
   useEffect(() => {
     refresh();
