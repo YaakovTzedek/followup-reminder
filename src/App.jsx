@@ -252,29 +252,33 @@ export default function App() {
             </section>
           );
         })}
-
-        {doneItems.length > 0 && (
-          <section className="mt-8">
-            <button onClick={() => setShowDone(s => !s)} className="text-[11px] text-slate-400 hover:text-slate-600 transition flex items-center gap-1.5">
-              <CheckCircle2 className="w-3 h-3" />
-              {showDone ? 'הסתר' : 'הצג'} {doneItems.length} פולואפים שטופלו
-            </button>
-            {showDone && (
-              <div className="mt-3 space-y-2 opacity-70">
-                {doneItems.map(item => (
-                  <div key={item.id} className="bg-slate-50 rounded-xl p-3 flex items-center gap-3 border border-slate-200">
-                    <div className="w-8 h-8 rounded-lg bg-slate-300 flex items-center justify-center text-white font-bold text-xs shrink-0">{item.name.charAt(0)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] text-slate-600 truncate line-through">{item.name}</div>
-                      <div className="text-[10px] text-slate-400 tabular-nums">{dateLabel(item.followUpAt)}</div>
-                    </div>
-                    <button onClick={() => unmarkDone(item.id)} className="flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 transition" title="החזר לבורד">
-                      <Undo2 className="w-3 h-3" />לא טופל
-                    </button>
+{doneItems.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-center gap-2 mb-2.5 px-1">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#10b981' }} />
+              <h2 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#10b981' }}>טופל</h2>
+              <span className="text-[10px] text-slate-400 tabular-nums">({doneItems.length})</span>
+              <div className="h-px flex-1 bg-slate-200/60 mr-1" />
+            </div>
+            <div className="space-y-2">
+              {doneItems.map(item => (
+                <div key={item.id} className="bg-white rounded-2xl p-3.5 flex items-center gap-3 border border-emerald-100 opacity-75">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0 text-sm" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                    <CheckCircle2 className="w-5 h-5" />
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="font-semibold text-slate-700 text-[13px] leading-tight line-through">{item.name}</h3>
+                      {item.source && (<><span className="text-[10px] text-slate-300">·</span><span className="text-[10px] text-slate-500">{item.source}</span></>)}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate tabular-nums">{hhmm(item.followUpAt)} · {dateLabel(item.followUpAt)}</p>
+                  </div>
+                  <button onClick={() => unmarkDone(item.id)} className="flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 transition shrink-0" title="החזר לבורד">
+                    <Undo2 className="w-3 h-3" />לא טופל
+                  </button>
+                </div>
+              ))}
+            </div>
           </section>
         )}
       </main>
