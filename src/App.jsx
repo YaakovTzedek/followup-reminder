@@ -113,7 +113,7 @@ const GROUP_META = {
   last_week: { title: 'שבוע שעבר', color: '#f59e0b' },
   last_month_plus: { title: 'חודש שעבר+', color: '#dc2626' },
 };
-const GROUP_ORDER = ['last_month_plus', 'last_week', 'today_future'];
+const GROUP_ORDER = ['today_future', 'last_week', 'last_month_plus'];
 
 function ItemCard({ item, color, onClick, onMarkDone }) {
   const { text: cdText, urgency } = countdown(item.followUpAt);
