@@ -22,11 +22,11 @@ function useMondayData() {
     try {
       const ctxRes = await monday.get('context');
       const ctx = ctxRes.data;
-      const meRes = await monday.api(`query { me { id email name } }`);
+      const meRes = await monday.api(`query { me { id email name is_admin } }`);
       const me = meRes.data.me;
       setUser(me);
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
-      const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
+      const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500, query_params: {rules: [{column_id: "${COLUMN_IDS.followUpDate}", compare_value: [], operator: is_not_empty}]}) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
       const res = await monday.api(q);
       const raw = res.data.boards[0].items_page.items;
       const myId = String(me.id);
@@ -34,7 +34,7 @@ function useMondayData() {
         const col = id => it.column_values.find(c => c.id === id) || {};
         const dateVal = JSON.parse(col(COLUMN_IDS.followUpDate).value || 'null');
         const peopleVal = JSON.parse(col(COLUMN_IDS.assignee).value || '{}');
-        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}Z`) : null;
+        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}`) : null;
         const assignedTo = (peopleVal.personsAndTeams || []).map(p => String(p.id));
         return {
           id: it.id, name: it.name, followUpAt, assignedTo,
@@ -43,7 +43,7 @@ function useMondayData() {
           notes: col(COLUMN_IDS.notes).text || '',
           source: col(COLUMN_IDS.source).text || '',
         };
-      }).filter(it => it.followUpAt && it.assignedTo.includes(myId));
+      }).filter(it => it.followUpAt && (me.is_admin || it.assignedTo.includes(myId)));
       setItems(mapped);
       setError(null);
     } catch (e) {
@@ -64,9 +64,7 @@ function useMondayData() {
 const pad = (n) => String(n).padStart(2, '0');
 
 const monthsBetween = (past, now) => {
-  let m = (now.getFullYear() - past.getFullYear()) * 12 + (now.getMonth() - past.getMonth());
-  if (now.getDate() < past.getDate()) m--;
-  return m;
+  return (now.getFullYear() - past.getFullYear()) * 12 + (now.getMonth() - past.getMonth());
 };
 
 const countdown = (d) => {
@@ -88,9 +86,9 @@ const countdown = (d) => {
     if (months < 12) return { text: `איחור ${months} חודשים`, urgency: 'overdue' };
     return { text: `איחור ${Math.floor(months / 12)} שנים`, urgency: 'overdue' };
   }
-  if (diff < 60000) return { text: `${secs} שניות`, urgency: 'urgent' };
-  if (diff < 3600000) return { text: `${mins}:${pad(secs)}`, urgency: 'urgent' };
-  if (diff < 86400000) return { text: `${pad(hours)}:${pad(mins)}:${pad(secs)}`, urgency: 'soon' };
+  if (diff < 60000) return { text: `בעוד ${secs} שניות`, urgency: 'urgent' };
+  if (diff < 3600000) return { text: `בעוד ${mins}:${pad(secs)}`, urgency: 'urgent' };
+  if (diff < 86400000) return { text: `בעוד ${pad(hours)}:${pad(mins)}:${pad(secs)}`, urgency: 'soon' };
   if (days === 1) return { text: 'מחר', urgency: 'normal' };
   if (days < 7) return { text: `בעוד ${days} ימים`, urgency: 'normal' };
   return { text: d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }), urgency: 'far' };
@@ -113,9 +111,7 @@ const groupOf = (d) => {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const t = d.getTime();
-  // היום (גם אם השעה כבר עברה) או עתידי
   if (t >= startOfToday) return 'today_future';
-  // עבר - חישוב לפי ימים מלאים
   const daysAgo = (startOfToday - t) / 86400000;
   if (daysAgo < 7) return 'last_week';
   return 'last_month_plus';
@@ -156,14 +152,26 @@ function ItemCard({ item, color, onClick, onMarkDone }) {
 }
 
 function FloatingNext({ item, onOpen }) {
-  if (!item) return null;
-  const { text: cdText, urgency } = countdown(item.followUpAt);
-  const isOverdue = urgency === 'overdue';
+  if (!item) {
+    return (
+      <div className="fixed bottom-4 left-4 z-40 max-w-[300px] rounded-2xl p-3.5 flex items-center gap-3 shadow-lg border border-slate-200 floating-card" style={{ background: '#ffffff' }}>
+        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+          <Inbox className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0 text-right">
+          <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">הפולואפ הקרוב</div>
+          <div className="text-slate-700 font-bold text-[13px]">אין פולואפים עתידיים</div>
+          <div className="text-slate-400 text-[11px]">הכל פנוי 🎉</div>
+        </div>
+      </div>
+    );
+  }
+  const { text: cdText } = countdown(item.followUpAt);
   return (
-    <button onClick={onOpen} className="fixed bottom-4 left-4 z-40 max-w-[300px] rounded-2xl p-3.5 flex items-center gap-3 shadow-2xl transition hover:scale-[1.02] active:scale-95 text-right floating-card" style={{ background: isOverdue ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', boxShadow: '0 20px 50px -10px rgba(0,0,0,0.4)' }}>
+    <button onClick={onOpen} className="fixed bottom-4 left-4 z-40 max-w-[300px] rounded-2xl p-3.5 flex items-center gap-3 shadow-2xl transition hover:scale-[1.02] active:scale-95 text-right floating-card" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', boxShadow: '0 20px 50px -10px rgba(0,0,0,0.4)' }}>
       <div className="w-10 h-10 rounded-xl bg-white/25 backdrop-blur flex items-center justify-center text-white font-bold shrink-0">{item.name.charAt(0)}</div>
       <div className="flex-1 min-w-0">
-        <div className="text-white/85 text-[10px] uppercase tracking-wider font-semibold">{isOverdue ? 'איחור!' : 'הפולואפ הקרוב'}</div>
+        <div className="text-white/85 text-[10px] uppercase tracking-wider font-semibold">הפולואפ הקרוב</div>
         <div className="text-white font-bold text-[13px] truncate">{item.name}</div>
         <div className="text-white/90 text-[12px] font-semibold tabular-nums">{cdText}</div>
       </div>
@@ -176,7 +184,6 @@ export default function App() {
   const { items, user, error } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
-  const [showDone, setShowDone] = useState(false);
   const [done, setDone] = useState(() => {
     try { const raw = localStorage.getItem('followup-done'); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
   });
@@ -201,9 +208,8 @@ export default function App() {
   const nextItem = useMemo(() => {
     if (visible.length === 0) return null;
     const now = Date.now();
-    const overdue = visible.filter(it => it.followUpAt.getTime() <= now);
-    if (overdue.length > 0) return overdue.sort((a, b) => b.followUpAt - a.followUpAt)[0];
-    return visible[0];
+    const future = visible.filter(it => it.followUpAt.getTime() > now).sort((a, b) => a.followUpAt - b.followUpAt);
+    return future[0] || null;
   }, [visible, tick]); // eslint-disable-line
 
   const overdueCount = visible.filter(it => it.followUpAt <= new Date()).length;
@@ -261,7 +267,8 @@ export default function App() {
             </section>
           );
         })}
-{doneItems.length > 0 && (
+
+        {doneItems.length > 0 && (
           <section className="mb-6">
             <div className="flex items-center gap-2 mb-2.5 px-1">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#10b981' }} />
@@ -292,7 +299,7 @@ export default function App() {
         )}
       </main>
 
-      {nextItem && !activeAlert && (<FloatingNext item={nextItem} onOpen={() => setActiveAlert(nextItem)} />)}
+      {!activeAlert && <FloatingNext item={nextItem} onOpen={() => nextItem && setActiveAlert(nextItem)} />}
 
       {activeAlert && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 popup-overlay" style={{ background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(8px)' }} onClick={() => setActiveAlert(null)}>
