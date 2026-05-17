@@ -16,21 +16,40 @@ const COLUMN_IDS = {
 };
 
 function useMondayData() {
-  const [items, setItems] = useState([]);
-  const [user, setUser] = useState(null);
+  const CACHE_KEY = 'fu-cache-v2';
+  
+  const [items, setItems] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && cached.items) {
+        return cached.items.map(it => ({ ...it, followUpAt: new Date(it.followUpAt) }));
+      }
+    } catch {}
+    return [];
+  });
+  const [user, setUser] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      return cached?.user || null;
+    } catch { return null; }
+  });
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
       const ctxRes = await monday.get('context');
       const ctx = ctxRes.data;
-      const meRes = await monday.api(`query { me { id email name is_admin } }`);
-      const me = meRes.data.me;
-      setUser(me);
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
       const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500, query_params: {rules: [{column_id: "${COLUMN_IDS.followUpDate}", compare_value: [], operator: is_not_empty}]}) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
-      const res = await monday.api(q);
-      const raw = res.data.boards[0].items_page.items;
+      
+      const [meRes, itemsRes] = await Promise.all([
+        monday.api(`query { me { id email name is_admin } }`),
+        monday.api(q),
+      ]);
+      
+      const me = meRes.data.me;
+      setUser(me);
+      const raw = itemsRes.data.boards[0].items_page.items;
       const myId = String(me.id);
       const isMainBoard = String(ctx.boardId) === MAIN_BOARD_ID;
       const isAdmin = me.is_admin === true;
@@ -54,6 +73,13 @@ function useMondayData() {
       });
       setItems(mapped);
       setError(null);
+      
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          user: me,
+          items: mapped.map(it => ({ ...it, followUpAt: it.followUpAt.toISOString() })),
+        }));
+      } catch {}
     } catch (e) {
       console.error('Monday fetch error', e);
       setError(e.message || String(e));
