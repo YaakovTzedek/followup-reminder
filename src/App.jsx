@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp, Check, Undo2 } from 'lucide-react';
+import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp, ChevronDown, Check, Undo2 } from 'lucide-react';
 import mondaySdk from 'monday-sdk-js';
 
 const monday = mondaySdk();
+
+const MAIN_BOARD_ID = '6227883193';
 
 const COLUMN_IDS = {
   followUpDate: 'date5__1',
@@ -30,6 +32,8 @@ function useMondayData() {
       const res = await monday.api(q);
       const raw = res.data.boards[0].items_page.items;
       const myId = String(me.id);
+      const isMainBoard = String(ctx.boardId) === MAIN_BOARD_ID;
+      const isAdmin = me.is_admin === true;
       const mapped = raw.map(it => {
         const col = id => it.column_values.find(c => c.id === id) || {};
         const dateVal = JSON.parse(col(COLUMN_IDS.followUpDate).value || 'null');
@@ -43,7 +47,11 @@ function useMondayData() {
           notes: col(COLUMN_IDS.notes).text || '',
           source: col(COLUMN_IDS.source).text || '',
         };
-      }).filter(it => it.followUpAt && (me.is_admin || it.assignedTo.includes(myId)));
+      }).filter(it => {
+        if (!it.followUpAt) return false;
+        if (isMainBoard) return it.assignedTo.includes(myId);
+        return isAdmin || it.assignedTo.includes(myId);
+      });
       setItems(mapped);
       setError(null);
     } catch (e) {
@@ -184,6 +192,7 @@ export default function App() {
   const { items, user, error } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
+  const [lastMonthLimit, setLastMonthLimit] = useState(20);
   const [done, setDone] = useState(() => {
     try { const raw = localStorage.getItem('followup-done'); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
   });
@@ -202,6 +211,7 @@ export default function App() {
   const grouped = useMemo(() => {
     const g = {};
     visible.forEach(it => { const key = groupOf(it.followUpAt); if (!g[key]) g[key] = []; g[key].push(it); });
+    if (g.last_month_plus) g.last_month_plus.sort((a, b) => b.followUpAt - a.followUpAt);
     return g;
   }, [visible, tick]); // eslint-disable-line
 
@@ -253,6 +263,9 @@ export default function App() {
           const list = grouped[key];
           if (!list || list.length === 0) return null;
           const meta = GROUP_META[key];
+          const isLastMonth = key === 'last_month_plus';
+          const displayList = isLastMonth ? list.slice(0, lastMonthLimit) : list;
+          const hasMore = isLastMonth && list.length > lastMonthLimit;
           return (
             <section key={key} className="mb-6">
               <div className="flex items-center gap-2 mb-2.5 px-1">
@@ -262,8 +275,14 @@ export default function App() {
                 <div className="h-px flex-1 bg-slate-200/60 mr-1" />
               </div>
               <div className="space-y-2">
-                {list.map(item => (<ItemCard key={item.id} item={item} color={meta.color} onClick={() => setActiveAlert(item)} onMarkDone={markDone} />))}
+                {displayList.map(item => (<ItemCard key={item.id} item={item} color={meta.color} onClick={() => setActiveAlert(item)} onMarkDone={markDone} />))}
               </div>
+              {hasMore && (
+                <button onClick={() => setLastMonthLimit(n => n + 50)} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
+                  <ChevronDown className="w-4 h-4" />
+                  טען עוד 50 ({list.length - lastMonthLimit} נותרו)
+                </button>
+              )}
             </section>
           );
         })}
