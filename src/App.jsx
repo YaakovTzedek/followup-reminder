@@ -30,7 +30,7 @@ function useMondayData() {
 
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
       const q = `query {
-        boards(ids: [${ctx.boardId}]) {
+        boards(ids: [״${ctx.boardId}״]) {
           items_page(limit: 500) {
             items {
               id name
