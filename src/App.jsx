@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp, ChevronDown, Check, Undo2 } from 'lucide-react';
+import { Phone, MessageCircle, Bell, Clock, CheckCircle2, X, AlertCircle, Inbox, ChevronUp, ChevronDown, Check, Undo2, RefreshCw } from 'lucide-react';
 import mondaySdk from 'monday-sdk-js';
 
 const monday = mondaySdk();
@@ -218,10 +218,10 @@ function FloatingNext({ item, onOpen }) {
 }
 
 export default function App() {
-  const { items, user, error } = useMondayData();
+const { items, user, error, refresh } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
-  const [lastMonthLimit, setLastMonthLimit] = useState(20);
+  const [groupLimits, setGroupLimits] = useState({ today_future: 20, last_week: 20, last_month_plus: 20 });
   const [done, setDone] = useState(() => {
     try { const raw = localStorage.getItem('followup-done'); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
   });
