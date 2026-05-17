@@ -34,7 +34,7 @@ function useMondayData() {
         const col = id => it.column_values.find(c => c.id === id) || {};
         const dateVal = JSON.parse(col(COLUMN_IDS.followUpDate).value || 'null');
         const peopleVal = JSON.parse(col(COLUMN_IDS.assignee).value || '{}');
-        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}`) : null;
+        const followUpAt = dateVal && dateVal.date ? new Date(`${dateVal.date}T${dateVal.time || '09:00:00'}Z`) : null;
         const assignedTo = (peopleVal.personsAndTeams || []).map(p => String(p.id));
         return {
           id: it.id, name: it.name, followUpAt, assignedTo,
