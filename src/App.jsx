@@ -23,8 +23,7 @@ function useMondayData() {
     try {
       const ctxRes = await monday.get('context');
       const ctx = ctxRes.data;
-      const meRes = await monday.api(`query { me { id email name } }`);
-      const me = meRes.data.me;
+  const me = ctx.user || { id: ctx.userId, name: 'Me' };
       setUser(me);
       setBoardId(ctx.boardId);
 
