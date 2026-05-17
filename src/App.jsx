@@ -324,9 +324,9 @@ const [groupLimits, setGroupLimits] = useState({ today_future: 10, last_week: 10
                   </button>
                 )}
                 {isExpanded && (
-                  <button onClick={() => setGroupLimits(g => ({ ...g, [key]: 20 }))} className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
+                  <button onClick={() => setGroupLimits(g => ({ ...g, [key]: 10 }))} className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
                     <ChevronUp className="w-4 h-4" />
-                    צמצם ל-20
+                    צמצם ל-10
                   </button>
                 )}
               </div>
