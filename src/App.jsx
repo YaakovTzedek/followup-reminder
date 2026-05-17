@@ -63,8 +63,15 @@ function useMondayData() {
 
 const pad = (n) => String(n).padStart(2, '0');
 
+const monthsBetween = (past, now) => {
+  let m = (now.getFullYear() - past.getFullYear()) * 12 + (now.getMonth() - past.getMonth());
+  if (now.getDate() < past.getDate()) m--;
+  return m;
+};
+
 const countdown = (d) => {
-  const diff = d.getTime() - Date.now();
+  const now = new Date();
+  const diff = d.getTime() - now.getTime();
   const abs = Math.abs(diff);
   const days = Math.floor(abs / 86400000);
   const hours = Math.floor((abs % 86400000) / 3600000);
@@ -77,7 +84,9 @@ const countdown = (d) => {
     if (days === 1) return { text: 'איחור יום', urgency: 'overdue' };
     if (days < 7) return { text: `איחור ${days} ימים`, urgency: 'overdue' };
     if (days < 30) return { text: `איחור ${Math.floor(days / 7)} שבועות`, urgency: 'overdue' };
-    return { text: `איחור ${Math.floor(days / 30)} חודשים`, urgency: 'overdue' };
+    const months = monthsBetween(d, now);
+    if (months < 12) return { text: `איחור ${months} חודשים`, urgency: 'overdue' };
+    return { text: `איחור ${Math.floor(months / 12)} שנים`, urgency: 'overdue' };
   }
   if (diff < 60000) return { text: `${secs} שניות`, urgency: 'urgent' };
   if (diff < 3600000) return { text: `${mins}:${pad(secs)}`, urgency: 'urgent' };
