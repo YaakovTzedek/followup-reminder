@@ -16,17 +16,21 @@ const COLUMN_IDS = {
 };
 
 function useMondayData() {
-  const cacheKeyFor = (boardId) => `fu-cache-v3-${boardId}`;
+  const cacheKeyFor = (boardId) => `fu-cache-v4-${boardId}`;
   const [boardId, setBoardId] = useState(null);
   const [items, setItems] = useState([]);
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
 
-  const refresh = useCallback(async () => {
+const refresh = useCallback(async (forceFresh = false) => {
     try {
       const ctxRes = await monday.get('context');
       const ctx = ctxRes.data;
       const bid = String(ctx.boardId);
+      
+      if (forceFresh) {
+        try { localStorage.removeItem(cacheKeyFor(bid)); } catch {}
+      }
       
       if (bid !== boardId) {
         setBoardId(bid);
@@ -220,7 +224,7 @@ export default function App() {
   const { items, user, error, refresh } = useMondayData();
   const [tick, setTick] = useState(0);
   const [activeAlert, setActiveAlert] = useState(null);
-  const [groupLimits, setGroupLimits] = useState({ today_future: 20, last_week: 20, last_month_plus: 20 });
+const [groupLimits, setGroupLimits] = useState({ today_future: 10, last_week: 10, last_month_plus: 10 });
   const [done, setDone] = useState(() => {
     try { const raw = localStorage.getItem('followup-done'); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
   });
@@ -272,8 +276,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={refresh} className="flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-600 hover:text-indigo-600" title="רענן עכשיו">
-              <RefreshCw className="w-3.5 h-3.5" />
+<button onClick={() => refresh(true)} className="flex items-center justify-center w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-600 hover:text-indigo-600" title="רענן עכשיו">              <RefreshCw className="w-3.5 h-3.5" />
             </button>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-white px-2.5 py-1.5 rounded-full border border-slate-200">
               <Clock className="w-3 h-3" />
@@ -301,7 +304,7 @@ export default function App() {
           const limit = groupLimits[key];
           const displayList = list.slice(0, limit);
           const hasMore = list.length > limit;
-          const isExpanded = limit > 20;
+          const isExpanded = limit > 10;
           return (
             <section key={key} className="mb-6">
               <div className="flex items-center gap-2 mb-2.5 px-1">
