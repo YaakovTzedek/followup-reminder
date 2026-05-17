@@ -159,9 +159,10 @@ const groupOf = (d) => {
 
 const GROUP_META = {
   today_future: { title: 'היום ובהמשך', color: '#7c3aed' },
-  last_week: { title: 'שבוע שעבר', color: '#f59e0b' },
-  last_month_plus: { title: 'חודש שעבר+', color: '#dc2626' },
+  last_week: { title: 'לא טופלו · השבוע', color: '#f59e0b' },
+  last_month_plus: { title: 'לא טופלו · החודש ומעלה', color: '#dc2626' },
 };
+
 const GROUP_ORDER = ['today_future', 'last_week', 'last_month_plus'];
 
 function ItemCard({ item, color, onClick, onMarkDone }) {
