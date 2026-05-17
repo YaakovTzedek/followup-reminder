@@ -288,13 +288,14 @@ const { items, user, error, refresh } = useMondayData();
           </div>
         )}
 
-        {GROUP_ORDER.map(key => {
+   {GROUP_ORDER.map(key => {
           const list = grouped[key];
           if (!list || list.length === 0) return null;
           const meta = GROUP_META[key];
-          const isLastMonth = key === 'last_month_plus';
-          const displayList = isLastMonth ? list.slice(0, lastMonthLimit) : list;
-          const hasMore = isLastMonth && list.length > lastMonthLimit;
+          const limit = groupLimits[key];
+          const displayList = list.slice(0, limit);
+          const hasMore = list.length > limit;
+          const isExpanded = limit > 20;
           return (
             <section key={key} className="mb-6">
               <div className="flex items-center gap-2 mb-2.5 px-1">
@@ -306,16 +307,24 @@ const { items, user, error, refresh } = useMondayData();
               <div className="space-y-2">
                 {displayList.map(item => (<ItemCard key={item.id} item={item} color={meta.color} onClick={() => setActiveAlert(item)} onMarkDone={markDone} />))}
               </div>
-              {hasMore && (
-                <button onClick={() => setLastMonthLimit(n => n + 50)} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
-                  <ChevronDown className="w-4 h-4" />
-                  טען עוד 50 ({list.length - lastMonthLimit} נותרו)
-                </button>
-              )}
+              <div className="flex gap-2 mt-3">
+                {hasMore && (
+                  <button onClick={() => setGroupLimits(g => ({ ...g, [key]: g[key] + 50 }))} className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
+                    <ChevronDown className="w-4 h-4" />
+                    טען עוד 50 ({list.length - limit} נותרו)
+                  </button>
+                )}
+                {isExpanded && (
+                  <button onClick={() => setGroupLimits(g => ({ ...g, [key]: 20 }))} className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 bg-white hover:bg-slate-50 transition border border-slate-200 flex items-center justify-center gap-1.5">
+                    <ChevronUp className="w-4 h-4" />
+                    צמצם ל-20
+                  </button>
+                )}
+              </div>
             </section>
           );
         })}
-
+        
         {doneItems.length > 0 && (
           <section className="mb-6">
             <div className="flex items-center gap-2 mb-2.5 px-1">
