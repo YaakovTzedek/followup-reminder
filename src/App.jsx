@@ -101,10 +101,14 @@ const waLink = (phone, msg) => {
 const defaultMessage = (name) => `היי ${name || ''}, רציתי לחזור אליך לגבי השיחה האחרונה שלנו. מתי נוח לך לדבר?`;
 
 const groupOf = (d) => {
-  const diff = d.getTime() - Date.now();
-  if (diff >= 0) return 'today_future';
-  const abs = Math.abs(diff);
-  if (abs < 7 * 86400000) return 'last_week';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const t = d.getTime();
+  // היום (גם אם השעה כבר עברה) או עתידי
+  if (t >= startOfToday) return 'today_future';
+  // עבר - חישוב לפי ימים מלאים
+  const daysAgo = (startOfToday - t) / 86400000;
+  if (daysAgo < 7) return 'last_week';
   return 'last_month_plus';
 };
 
