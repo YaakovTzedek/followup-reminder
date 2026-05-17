@@ -26,7 +26,7 @@ function useMondayData() {
       const me = meRes.data.me;
       setUser(me);
       const cols = Object.values(COLUMN_IDS).map(c => `"${c}"`).join(',');
-      const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500, query_params: { rules: [{ column_id: "date5__1", compare_value: [], operator: not_any_of }] }) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
+      const q = `query { boards(ids: [${ctx.boardId}]) { items_page(limit: 500) { items { id name column_values(ids: [${cols}]) { id type text value } } } } }`;
       const res = await monday.api(q);
       const raw = res.data.boards[0].items_page.items;
       const myId = String(me.id);
